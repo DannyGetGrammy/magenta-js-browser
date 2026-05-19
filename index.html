@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Magenta.js Music Generation Explorer</title>
+
+  <!-- External Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.58/Tone.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/3.18.0/tf.min.js"></script>
+
+  <!-- Magenta Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/@magenta/music@^1.0.0/es6/core.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@magenta/music@^1.0.0/es6/music_rnn.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@magenta/music@^1.0.0/es6/music_vae.js"></script>
+
+  <!-- File Download Library -->
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+
+  <!-- Load Stylesheet for Formatting the Webpage -->
+  <link href="style.css" rel="stylesheet">
+
+</head>
+
+<body>
+  <div class="container">
+    <header>
+      <h1>Magenta.js Music Generation Explorer</h1>
+      <p class="subtitle">Explore machine learning models for music generation</p>
+
+      <div class="model-status">
+        <div class="status-badge" id="musicRnnStatus">
+          <span class="dot"></span>
+          <span>MusicRNN: Loading...</span>
+        </div>
+        <div class="status-badge" id="musicVaeStatus">
+          <span class="dot"></span>
+          <span>MusicVAE: Loading...</span>
+        </div>
+      </div>
+
+      <div class="playback-panel">
+        <div class="playback-copy">
+          <h2>Playback Tempo</h2>
+          <p class="playback-caption">Set one tempo for all preview playback, including saved favorites.</p>
+        </div>
+        <div class="slider-container playback-slider">
+          <input type="range" id="playbackTempo" min="60" max="180" value="120" step="5">
+          <span class="value-display tempo-display" id="playbackTempoValue">120 BPM</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="introduction">Introduction</div>
+      <div class="tab" data-tab="continuation">Continuation (MusicRNN)</div>
+      <div class="tab" data-tab="sampling">Sampling (MusicVAE)</div>
+      <div class="tab" data-tab="interpolation">Interpolation (MusicVAE)</div>
+      <div class="tab" data-tab="collection">Collection</div>
+    </div>
+
+    <div class="tab-content active" id="introduction">
+      <div class="card">
+        <h2 class="card-title">Welcome to Magenta.js</h2>
+        <p>This application allows you to explore machine learning models for music generation using Google's Magenta.js
+          library. You'll be able to generate melodies, create variations, and understand how machine learning can be
+          applied to music creation.</p>
+
+        <div class="info-box">
+          <h4>Getting Started</h4>
+          <p>The models load in the background. Once they're ready (indicated by green status
+            indicators at the top), you can start exploring!</p>
+          <p>Choose one of the tabs above to try different generation approaches:</p>
+          <ul>
+            <li><strong>Continuation (MusicRNN)</strong>: Generate a continuation of a musical sequence using a
+              Recurrent Neural Network</li>
+            <li><strong>Sampling (MusicVAE)</strong>: Create brand new melodies from a Variational Autoencoder's latent
+              space</li>
+            <li><strong>Interpolation (MusicVAE)</strong>: Blend between two different melodies to create smooth
+              transitions</li>
+          </ul>
+        </div>
+
+        <div class="content-section">
+          <h3>About Magenta.js</h3>
+          <p>Magenta.js is the JavaScript implementation of Google's Magenta project, which uses machine learning to
+            create music and art. It's the technology behind tools like Magenta Studio, but gives you direct access to
+            the underlying models.</p>
+
+          <h3>Machine Learning Concepts</h3>
+          <p>This app demonstrates several key machine learning concepts:</p>
+          <ul>
+            <li><strong>Recurrent Neural Networks (RNN)</strong>: Models that can generate sequential data (like
+              melodies) based on what came before</li>
+            <li><strong>Variational Autoencoders (VAE)</strong>: Models that learn a compressed representation (latent
+              space) of musical ideas</li>
+            <li><strong>Temperature</strong>: A parameter that controls randomness in generation - lower values produce
+              more predictable output, higher values more surprising results</li>
+            <li><strong>Latent Space</strong>: A mathematical representation of musical features that the model learns
+            </li>
+          </ul>
+
+          <h3>For Lab Exercise 2</h3>
+          <p>As part of your assignment, experiment with different parameters, generate various sequences, and document
+            your observations. Pay special attention to how changes in parameters affect the musical output.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- The MusicRNN Section -->
+    <div class="tab-content" id="continuation">
+      <div class="card">
+        <h2 class="card-title">
+          Melody Continuation with MusicRNN
+          <span class="info-icon tooltip">ⓘ
+            <span class="tooltip-text">MusicRNN uses a recurrent neural network to predict what notes should come next
+              in a sequence.</span>
+          </span>
+        </h2>
+
+        <div class="seed-container">
+          <div class="seed-title">
+            <span>Select a seed melody:</span>
+          </div>
+          <div class="seed-selectors">
+            <div class="seed-selector selected" data-seed="cmajor">C Major Scale</div>
+            <div class="seed-selector" data-seed="cminor">C Minor Scale</div>
+            <div class="seed-selector" data-seed="cmajorarp">C Major Arpeggio</div>
+            <div class="seed-selector" data-seed="blues">Blues Lick</div>
+          </div>
+
+          <!-- Seed Visualization Area -->
+          <div class="visualizer-container small" id="seedVisualizer">
+            <!-- SVG will be inserted here -->
+          </div>
+
+          <div class="result-actions">
+            <button id="playSeed" class="small">Play Seed</button>
+            <button id="downloadSeed" class="small secondary">Download MIDI</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="continuationSteps">Length of continuation (steps):</label>
+          <div class="slider-container">
+            <input type="range" id="continuationSteps" min="8" max="64" value="32" step="8">
+            <span class="value-display" id="continuationStepsValue">32</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="continuationTemperature">
+            Temperature:
+            <span class="tooltip">ⓘ
+              <span class="tooltip-text">Controls randomness: Low (0.2) = more predictable, High (2.0) = more
+                random</span>
+            </span>
+          </label>
+          <div class="slider-container">
+            <input type="range" id="continuationTemperature" min="0.2" max="2" value="1" step="0.1">
+            <span class="value-display" id="continuationTemperatureValue">1</span>
+          </div>
+        </div>
+
+        <button id="generateContinuation" disabled>Generate Continuation</button>
+
+        <div class="visualizer-container" id="continuationVisualizer">
+          <div class="visualizer-placeholder">Generated melody will appear here</div>
+        </div>
+
+        <div class="result-actions" id="continuationActions" style="display: none;">
+          <button id="playContinuation">Play</button>
+          <button id="downloadContinuation" class="secondary">Download MIDI</button>
+          <button id="saveContinuation" class="tertiary">Save to Collection</button>
+        </div>
+
+        <div class="info-box">
+          <h4>How MusicRNN Works</h4>
+          <p>MusicRNN is a recurrent neural network that's been trained on a large dataset of melodies. Given a seed
+            melody, it predicts what notes are likely to come next.</p>
+          <p>Try experimenting with different seed melodies and temperature values to see how they affect the generated
+            continuation.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- The MusicVAE Section -->
+    <div class="tab-content" id="sampling">
+      <div class="card">
+        <h2 class="card-title">
+          Generate Samples with MusicVAE
+          <span class="info-icon tooltip">ⓘ
+            <span class="tooltip-text">MusicVAE can generate entirely new musical ideas from its learned latent
+              space.</span>
+          </span>
+        </h2>
+
+        <div class="form-group">
+          <label for="samplesCount">Number of samples:</label>
+          <div class="slider-container">
+            <input type="range" id="samplesCount" min="1" max="6" value="3" step="1">
+            <span class="value-display" id="samplesCountValue">3</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="samplesTemperature">
+            Temperature:
+            <span class="tooltip">ⓘ
+              <span class="tooltip-text">Controls the creativity/randomness of the samples</span>
+            </span>
+          </label>
+          <div class="slider-container">
+            <input type="range" id="samplesTemperature" min="0.2" max="2" value="1" step="0.1">
+            <span class="value-display" id="samplesTemperatureValue">1</span>
+          </div>
+        </div>
+
+        <button id="generateSamples" disabled>Generate Samples</button>
+
+        <div id="samplesContainer" class="sample-list">
+          <!-- Sample items will be added here -->
+        </div>
+
+        <div class="info-box">
+          <h4>Understanding MusicVAE</h4>
+          <p>MusicVAE uses a variational autoencoder that compresses musical ideas into a latent space. By sampling from
+            this space, the model can generate completely new melodies.</p>
+          <p>Higher temperature values will give more varied and potentially interesting results, but might be less
+            musically coherent.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="interpolation">
+      <div class="card">
+        <h2 class="card-title">
+          Melody Interpolation with MusicVAE
+          <span class="info-icon tooltip">ⓘ
+            <span class="tooltip-text">Interpolation creates a smooth transition between two different musical
+              ideas.</span>
+          </span>
+        </h2>
+
+        <div class="content-section">
+          <h3>Starting Melody</h3>
+          <div class="seed-container">
+            <div class="seed-title">
+              <span>Select starting point:</span>
+            </div>
+            <div class="seed-selectors">
+              <div class="seed-selector selected" data-seed="cmajor" data-target="start">C Major Scale</div>
+              <div class="seed-selector" data-seed="cminor" data-target="start">C Minor Scale</div>
+              <div class="seed-selector" data-seed="cmajorarp" data-target="start">C Major Arpeggio</div>
+              <div class="seed-selector" data-seed="blues" data-target="start">Blues Lick</div>
+            </div>
+
+            <!-- Start Seed Visualization Area -->
+            <div class="visualizer-container small" id="startSeedVisualizer">
+              <!-- SVG will be inserted here -->
+            </div>
+
+            <div class="result-actions">
+              <button id="playStartSeed" class="small">Play</button>
+              <button id="downloadStartSeed" class="small secondary">Download MIDI</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="content-section">
+          <h3>Ending Melody</h3>
+          <div class="seed-container">
+            <div class="seed-title">
+              <span>Select ending point:</span>
+            </div>
+            <div class="seed-selectors">
+              <div class="seed-selector" data-seed="cmajor" data-target="end">C Major Scale</div>
+              <div class="seed-selector" data-seed="cminor" data-target="end">C Minor Scale</div>
+              <div class="seed-selector selected" data-seed="cmajorarp" data-target="end">C Major Arpeggio</div>
+              <div class="seed-selector" data-seed="blues" data-target="end">Blues Lick</div>
+            </div>
+
+            <!-- End Seed Visualization Area -->
+            <div class="visualizer-container small" id="endSeedVisualizer">
+              <!-- SVG will be inserted here -->
+            </div>
+
+            <div class="result-actions">
+              <button id="playEndSeed" class="small">Play</button>
+              <button id="downloadEndSeed" class="small secondary">Download MIDI</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="numInterpolations">Number of steps between melodies:</label>
+          <div class="slider-container">
+            <input type="range" id="numInterpolations" min="3" max="9" value="5" step="2">
+            <span class="value-display" id="numInterpolationsValue">5</span>
+          </div>
+        </div>
+
+        <button id="generateInterpolation" disabled>Generate Interpolation</button>
+
+        <div id="interpolationContainer" class="interpolation-grid">
+          <!-- Interpolation items will be added here -->
+        </div>
+
+        <div class="info-box">
+          <h4>How Interpolation Works</h4>
+          <p>Interpolation works by encoding two different melodies into the latent space, then creating a series of
+            points between them. These points are then decoded back into melodies.</p>
+          <p>This demonstrates how the latent space that MusicVAE learns represents musical ideas in a continuous way,
+            allowing for smooth transitions between very different melodies.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="collection">
+      <div class="card">
+        <h2 class="card-title">Favorite Outputs</h2>
+        <p class="subtitle collection-subtitle">Save generated continuations, samples, and interpolation steps to build your own reusable set of ideas.</p>
+
+        <div id="favoritesContainer" class="sample-list">
+          <div class="collection-empty" id="favoritesEmptyState">
+            No saved outputs yet. Generate something and use "Save to Collection".
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <p>Created for MUST.3973 - AI for Musical Innovation | Summer 2025</p>
+      <p>Powered by <a href="https://magenta.tensorflow.org/" target="_blank">Magenta.js</a></p>
+    </footer>
+  </div>
+
+  <div class="notification" id="notification"></div>
+
+  <script src="script.js"></script>
+</body>
+
+</html>
